@@ -1,0 +1,5 @@
+# .gitignore
+uploads
+node_modules
+data
+/public/script.js--test
