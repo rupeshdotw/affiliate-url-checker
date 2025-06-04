@@ -10,12 +10,13 @@ const __dirname = path.dirname(__filename);
 
 
 const app = express();
-const PORT = 8080;
+const PORT = 9000;
 
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 
 // --- FAST METHOD: Simple Fetch Only (Target < 2 seconds) ---
 async function trySimpleFetch(inputUrl, timeoutMs = 1000) {
@@ -43,7 +44,9 @@ async function trySimpleFetch(inputUrl, timeoutMs = 1000) {
           originalUrl: inputUrl,
           finalUrl,
           method: 'simple-fetch',
-          hasClickId: finalUrl.includes('clickid=')
+          hasClickId: finalUrl.includes('clickid='),
+          hasUtmSource: finalUrl.includes('utm_source='),
+          hasClickRef: finalUrl.includes('clickref='),
         }
       };
     }
@@ -105,7 +108,7 @@ app.get('/resolve', async (req, res) => {
 
     result = await tryPuppeteerResolve(inputUrl);
 
-    if (result.success && result.finalUrl.includes('clickid=')) {
+    if (result.success && result.finalUrl.includes('clickid=') || result.finalUrl.includes('clickref=') || result.finalUrl.includes('utm_source=')) {
       return res.json(result.data);
     }
 
@@ -156,7 +159,7 @@ async function tryPuppeteerResolve(inputUrl) {
       finalUrl = page.url();
       if (finalUrl === prevUrl) stableCount++;
       else stableCount = 0;
-      if (stableCount >= 3 && finalUrl.includes('clickid=')) break;
+      if (stableCount >= 3 && finalUrl.includes('clickid=') || finalUrl.includes('clickref=') || finalUrl.includes('utm_source=')) break;
     }
 
     return {
@@ -166,7 +169,9 @@ async function tryPuppeteerResolve(inputUrl) {
         originalUrl: inputUrl,
         finalUrl,
         method: 'puppeteer-standard',
-        hasClickId: finalUrl.includes('clickid=')
+        hasClickId: finalUrl.includes('clickid='),
+        hasClickRef: finalUrl.includes('clickref='),
+        hasUtmSource: finalUrl.includes('utm_source=')
       }
     };
   } catch {
@@ -193,7 +198,7 @@ async function tryAdvancedPuppeteer(inputUrl) {
 
     page.on('request', (req) => {
       const url = req.url();
-      if (url.includes('clickid=') && !bestUrlWithClickId) bestUrlWithClickId = url;
+      if (url.includes('clickid=') || url.includes('clickref=') || url.includes('utm_source=') && !bestUrlWithClickId) bestUrlWithClickId = url;
       req.continue();
     });
 
@@ -203,7 +208,7 @@ async function tryAdvancedPuppeteer(inputUrl) {
         const location = res.headers()['location'];
         if (location) {
           allRedirects.push(location);
-          if (location.includes('clickid=') && !bestUrlWithClickId) {
+          if (location.includes('clickid=') || location.includes('clickref=') || location.includes('utm_source') && !bestUrlWithClickId) {
             bestUrlWithClickId = location;
           }
         }
@@ -224,6 +229,8 @@ async function tryAdvancedPuppeteer(inputUrl) {
         finalUrl,
         method: 'puppeteer-advanced',
         hasClickId: finalUrl.includes('clickid='),
+        hasClickRef: finalUrl.includes('clickref='),
+        hasUtmSource: finalUrl.includes('utm_source='),
         redirectChain: allRedirects
       }
     };
