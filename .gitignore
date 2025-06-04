@@ -3,3 +3,4 @@ uploads
 node_modules
 data
 /public/script.js--test
+server.js--old

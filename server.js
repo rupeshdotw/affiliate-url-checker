@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 
 const app = express();
-const PORT = 8080;
+const PORT = 9000;
 
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 
-// --- FAST METHOD: Simple Fetch Only (Target < 2 seconds) ---
+// --- FAST METHOD: Simple Fetch Only (Target < 1 seconds) ---
 async function trySimpleFetch(inputUrl, timeoutMs = 1000) {
   try {
     const controller = new AbortController();
@@ -87,7 +87,8 @@ app.get('/resolve-fast', async (req, res) => {
 });
 
 // --- FALLBACK ENDPOINT (INCLUDES PUPPETEER METHODS) ---
-//http://localhost:5200/resolve?url=https://domain.com
+//http://localhost:5100/resolve?url=your-url-here
+//http://localhost:5100/resolve-fast?url=your-url-here
 app.get('/resolve', async (req, res) => {
   const { url: inputUrl } = req.query;
 
@@ -145,21 +146,32 @@ async function tryPuppeteerResolve(inputUrl) {
 
     const page = await browser.newPage();
 
+    // Optimize page load
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      // Only allow document requests, block images, stylesheets, and scripts
+      if (['image', 'stylesheet', 'script', 'font'].includes(request.resourceType())) {
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
+
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)...');
-    await page.goto(inputUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    await sleep(3000);
+    await page.goto(inputUrl, { waitUntil: 'networkidle2', timeout: 15000 });
+    await sleep(2000);
 
     let finalUrl = page.url();
     let prevUrl = '';
     let stableCount = 0;
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       prevUrl = finalUrl;
-      await sleep(1000);
+      await sleep(500);
       finalUrl = page.url();
       if (finalUrl === prevUrl) stableCount++;
       else stableCount = 0;
-      if (stableCount >= 3 && finalUrl.includes('clickid=') || finalUrl.includes('clickref=') || finalUrl.includes('utm_source=')) break;
+      if (stableCount >= 2 && finalUrl.includes('clickid=') || finalUrl.includes('clickref=') || finalUrl.includes('utm_source=')) break;
     }
 
     return {
@@ -187,7 +199,7 @@ async function tryAdvancedPuppeteer(inputUrl) {
   try {
     browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
 
     const page = await browser.newPage();
@@ -216,8 +228,8 @@ async function tryAdvancedPuppeteer(inputUrl) {
     });
 
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)...');
-    await page.goto(inputUrl, { waitUntil: 'networkidle0', timeout: 45000 });
-    await sleep(8000);
+    await page.goto(inputUrl, { waitUntil: 'networkidle0', timeout: 20000 });
+    await sleep(4000);
 
     const finalUrl = bestUrlWithClickId || page.url();
 
