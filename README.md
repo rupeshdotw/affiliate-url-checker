@@ -20,3 +20,5 @@ npm i
 # Step 4: Start the development server with auto-reloading and an instant preview.
 node server.js
 ```
+
+![Screenshot 2025-06-04 at 4 33 54 PM](https://github.com/user-attachments/assets/d52e19e1-4174-47bf-bf12-55f5e9b9ca5c)
